@@ -59,7 +59,7 @@ where
 
     /// Returns the list of heights at which the consensus state of the given client was updated.
     fn consensus_state_heights(&self, client_id: &ClientId) -> Result<Vec<Height>, HostError> {
-        let path = format!("clients/{}/consensusStates", client_id).into();
+        let path = format!("clients/{client_id}/consensusStates").into();
 
         self.consensus_state_store
             .get_keys(&path)

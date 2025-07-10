@@ -1,5 +1,4 @@
 #![deny(
-    warnings,
     trivial_casts,
     trivial_numeric_casts,
     unused_import_braces,

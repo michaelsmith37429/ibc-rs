@@ -96,6 +96,6 @@ mod test {
     fn client_type_build_client_id(#[case] client_str: &str, #[case] counter: u64) {
         let client_type = ClientType::from_str(client_str).unwrap();
         let client_id = client_type.build_client_id(counter);
-        assert_eq!(client_id.as_str(), format!("{}-{}", client_str, counter));
+        assert_eq!(client_id.as_str(), format!("{client_str}-{counter}"));
     }
 }

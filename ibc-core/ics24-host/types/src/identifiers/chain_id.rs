@@ -99,7 +99,7 @@ impl ChainId {
             .revision_number
             .checked_add(1)
             .ok_or(IdentifierError::OverflowedRevisionNumber)?;
-        self.id = format!("{}-{}", chain_name, inc_revision_number);
+        self.id = format!("{chain_name}-{inc_revision_number}");
         self.revision_number = inc_revision_number;
         Ok(())
     }
@@ -196,8 +196,7 @@ impl<'de> Deserialize<'de> for ChainId {
                             if let Some(rn) = revision_number {
                                 if rev != 0 && rn != rev {
                                     return Err(Error::custom(format_args!(
-                                        "chain ID revision numbers do not match; got `{}` and `{}`",
-                                        rn, rev,
+                                        "chain ID revision numbers do not match; got `{rn}` and `{rev}`",
                                     )));
                                 }
                             } else {

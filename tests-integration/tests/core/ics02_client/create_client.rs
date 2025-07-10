@@ -1,7 +1,7 @@
 use ibc::clients::tendermint::types::{
     client_type as tm_client_type, ConsensusState as TmConsensusState,
 };
-use ibc::core::client::context::client_state::ClientStateCommon;
+use ibc::core::client::context::client_state::{ClientStateCommon, ClientStateValidation};
 use ibc::core::client::context::ClientValidationContext;
 use ibc::core::client::types::error::ClientError;
 use ibc::core::client::types::msgs::{ClientMsg, MsgCreateClient};
@@ -281,6 +281,7 @@ fn test_tm_create_client_proof_verification_ok() {
     // correct value verification
     tm_client_state
         .verify_membership(
+            client_validation_ctx_mk,
             &ctx_tm.ibc_store().commitment_prefix(),
             &proof,
             &root,
@@ -293,6 +294,7 @@ fn test_tm_create_client_proof_verification_ok() {
     assert!(matches!(
         tm_client_state
             .verify_membership(
+                client_validation_ctx_mk,
                 &ctx_tm.ibc_store().commitment_prefix(),
                 &proof,
                 &root,

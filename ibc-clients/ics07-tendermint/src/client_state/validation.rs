@@ -2,14 +2,24 @@ use ibc_client_tendermint_types::{
     ClientState as ClientStateType, ConsensusState as ConsensusStateType, Header as TmHeader,
     Misbehaviour as TmMisbehaviour, TENDERMINT_HEADER_TYPE_URL, TENDERMINT_MISBEHAVIOUR_TYPE_URL,
 };
-use ibc_core_client::context::client_state::ClientStateValidation;
+use ibc_core_client::context::client_state::{ClientStateCommon, ClientStateValidation};
 use ibc_core_client::context::{Convertible, ExtClientValidationContext};
-use ibc_core_client::types::error::ClientError;
+use ibc_core_client::types::error::{ClientError, UpgradeClientError};
 use ibc_core_client::types::Status;
+use ibc_core_commitment_types::commitment::{
+    CommitmentPrefix, CommitmentProofBytes, CommitmentRoot,
+};
+use ibc_core_commitment_types::error::CommitmentError;
+use ibc_core_commitment_types::merkle::{MerklePath, MerkleProof};
+use ibc_core_commitment_types::proto::ics23::{HostFunctionsManager, HostFunctionsProvider};
+use ibc_core_commitment_types::specs::ProofSpecs;
 use ibc_core_host::types::identifiers::ClientId;
-use ibc_core_host::types::path::ClientConsensusStatePath;
+use ibc_core_host::types::path::{
+    ClientConsensusStatePath, Path, PathBytes, UpgradeClientStatePath, UpgradeConsensusStatePath,
+};
 use ibc_primitives::prelude::*;
 use ibc_primitives::proto::Any;
+use ibc_primitives::ToVec;
 use tendermint::crypto::default::Sha256;
 use tendermint::crypto::Sha256 as Sha256Trait;
 use tendermint::merkle::MerkleHash;
@@ -20,6 +30,7 @@ use super::{
     consensus_state_status, ClientState,
 };
 use crate::client_state::{verify_header, verify_misbehaviour};
+use crate::consensus_state::ConsensusState as TmConsensusState;
 
 impl<V> ClientStateValidation<V> for ClientState
 where
@@ -76,6 +87,101 @@ where
 
     fn check_substitute(&self, _ctx: &V, substitute_client_state: Any) -> Result<(), ClientError> {
         check_substitute::<V>(self.inner(), substitute_client_state)
+    }
+
+    fn verify_upgrade_client(
+        &self,
+        _ctx: &V,
+        upgraded_client_state: Any,
+        upgraded_consensus_state: Any,
+        proof_upgrade_client: CommitmentProofBytes,
+        proof_upgrade_consensus_state: CommitmentProofBytes,
+        root: &CommitmentRoot,
+    ) -> Result<(), ClientError> {
+        let last_height = self.latest_height().revision_height();
+
+        // The client state's upgrade path vector needs to parsed into a tuple in the form
+        // of `(upgrade_path_prefix, upgrade_path)`. Given the length of the client
+        // state's upgrade path vector, the following determinations are made:
+        // 1: The commitment prefix is left empty and the upgrade path is used as-is.
+        // 2: The commitment prefix and upgrade path are both taken as-is.
+        let upgrade_path = &self.inner().upgrade_path;
+        let (upgrade_path_prefix, upgrade_path) = match upgrade_path.len() {
+            0 => {
+                return Err(UpgradeClientError::MissingUpgradePath.into());
+            }
+            1 => (CommitmentPrefix::empty(), upgrade_path[0].clone()),
+            2 => (
+                upgrade_path[0].as_bytes().to_vec().into(),
+                upgrade_path[1].clone(),
+            ),
+            _ => {
+                return Err(UpgradeClientError::InvalidUpgradePath {
+                    description: "upgrade path is too long".to_string(),
+                }
+                .into());
+            }
+        };
+
+        let upgrade_client_path_bytes =
+            self.serialize_path(Path::UpgradeClientState(UpgradeClientStatePath {
+                upgrade_path: upgrade_path.clone(),
+                height: last_height,
+            }))?;
+
+        let upgrade_consensus_path_bytes =
+            self.serialize_path(Path::UpgradeConsensusState(UpgradeConsensusStatePath {
+                upgrade_path,
+                height: last_height,
+            }))?;
+
+        verify_upgrade_client::<HostFunctionsManager>(
+            self.inner(),
+            upgraded_client_state,
+            upgraded_consensus_state,
+            proof_upgrade_client,
+            proof_upgrade_consensus_state,
+            upgrade_path_prefix,
+            upgrade_client_path_bytes,
+            upgrade_consensus_path_bytes,
+            root,
+        )
+    }
+
+    fn verify_membership_raw(
+        &self,
+        _ctx: &V,
+        prefix: &CommitmentPrefix,
+        proof: &CommitmentProofBytes,
+        root: &CommitmentRoot,
+        path: PathBytes,
+        value: Vec<u8>,
+    ) -> Result<(), ClientError> {
+        verify_membership::<HostFunctionsManager>(
+            &self.inner().proof_specs,
+            prefix,
+            proof,
+            root,
+            path,
+            value,
+        )
+    }
+
+    fn verify_non_membership_raw(
+        &self,
+        _ctx: &V,
+        prefix: &CommitmentPrefix,
+        proof: &CommitmentProofBytes,
+        root: &CommitmentRoot,
+        path: PathBytes,
+    ) -> Result<(), ClientError> {
+        verify_non_membership::<HostFunctionsManager>(
+            &self.inner().proof_specs,
+            prefix,
+            proof,
+            root,
+            path,
+        )
     }
 }
 
@@ -279,4 +385,116 @@ where
         && subject_upgrade_path == &substitute_upgrade_path)
         .then_some(())
         .ok_or(ClientError::FailedToVerifyClientRecoveryStates)
+}
+
+/// Perform client-specific verifications and check all data in the new
+/// client state to be the same across all valid Tendermint clients for the
+/// new chain.
+///
+/// You can learn more about how to upgrade IBC-connected SDK chains in
+/// [this](https://ibc.cosmos.network/main/ibc/upgrades/quick-guide.html)
+/// guide.
+///
+/// Note that this function is typically implemented as part of the
+/// [`ClientStateCommon`] trait, but has been made a standalone function
+/// in order to make the ClientState APIs more flexible.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_upgrade_client<H: HostFunctionsProvider>(
+    client_state: &ClientStateType,
+    upgraded_client_state: Any,
+    upgraded_consensus_state: Any,
+    proof_upgrade_client: CommitmentProofBytes,
+    proof_upgrade_consensus_state: CommitmentProofBytes,
+    upgrade_path_prefix: CommitmentPrefix,
+    upgrade_client_path_bytes: PathBytes,
+    upgrade_consensus_path_bytes: PathBytes,
+    root: &CommitmentRoot,
+) -> Result<(), ClientError> {
+    // Make sure that the client type is of Tendermint type `ClientState`
+    let upgraded_tm_client_state = ClientState::try_from(upgraded_client_state.clone())?;
+
+    // Make sure that the consensus type is of Tendermint type `ConsensusState`
+    TmConsensusState::try_from(upgraded_consensus_state.clone())?;
+
+    let latest_height = client_state.latest_height;
+    let upgraded_tm_client_state_height = upgraded_tm_client_state.latest_height();
+
+    // Make sure the latest height of the current client is not greater then
+    // the upgrade height This condition checks both the revision number and
+    // the height
+    if latest_height >= upgraded_tm_client_state_height {
+        Err(UpgradeClientError::InsufficientUpgradeHeight {
+            upgraded_height: upgraded_tm_client_state_height,
+            client_height: latest_height,
+        })?
+    }
+
+    // Verify the proof of the upgraded client state
+    verify_membership::<H>(
+        &client_state.proof_specs,
+        &upgrade_path_prefix,
+        &proof_upgrade_client,
+        root,
+        upgrade_client_path_bytes,
+        upgraded_client_state.to_vec(),
+    )?;
+
+    // Verify the proof of the upgraded consensus state
+    verify_membership::<H>(
+        &client_state.proof_specs,
+        &upgrade_path_prefix,
+        &proof_upgrade_consensus_state,
+        root,
+        upgrade_consensus_path_bytes,
+        upgraded_consensus_state.to_vec(),
+    )?;
+
+    Ok(())
+}
+
+/// Verify membership of the given value against the client's merkle proof.
+///
+/// Note that this function is typically implemented as part of the
+/// [`ClientStateCommon`] trait, but has been made a standalone function
+/// in order to make the ClientState APIs more flexible.
+pub fn verify_membership<H: HostFunctionsProvider>(
+    proof_specs: &ProofSpecs,
+    prefix: &CommitmentPrefix,
+    proof: &CommitmentProofBytes,
+    root: &CommitmentRoot,
+    path: PathBytes,
+    value: Vec<u8>,
+) -> Result<(), ClientError> {
+    if prefix.is_empty() {
+        Err(CommitmentError::MissingCommitmentPrefix)?;
+    }
+
+    let merkle_path = MerklePath::new(vec![prefix.as_bytes().to_vec().into(), path]);
+
+    let merkle_proof = MerkleProof::try_from(proof)?;
+
+    merkle_proof.verify_membership::<H>(proof_specs, root.clone().into(), merkle_path, value, 0)?;
+
+    Ok(())
+}
+
+/// Verify that the given value does not belong in the client's merkle proof.
+///
+/// Note that this function is typically implemented as part of the
+/// [`ClientStateCommon`] trait, but has been made a standalone function
+/// in order to make the ClientState APIs more flexible.
+pub fn verify_non_membership<H: HostFunctionsProvider>(
+    proof_specs: &ProofSpecs,
+    prefix: &CommitmentPrefix,
+    proof: &CommitmentProofBytes,
+    root: &CommitmentRoot,
+    path: PathBytes,
+) -> Result<(), ClientError> {
+    let merkle_path = MerklePath::new(vec![prefix.as_bytes().to_vec().into(), path]);
+
+    let merkle_proof = MerkleProof::try_from(proof)?;
+
+    merkle_proof.verify_non_membership::<H>(proof_specs, root.clone().into(), merkle_path)?;
+
+    Ok(())
 }

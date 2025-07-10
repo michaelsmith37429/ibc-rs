@@ -194,6 +194,7 @@ where
 
         // Verify the proof for the packet against the chain store.
         client_state_of_a_on_b.verify_membership(
+            client_val_ctx_b,
             conn_end_on_b.counterparty().prefix(),
             &msg.proof_commitment_on_a,
             consensus_state_of_a_on_b.root(),

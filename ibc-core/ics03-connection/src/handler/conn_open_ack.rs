@@ -95,6 +95,7 @@ where
             )?;
 
             client_state_of_b_on_a.verify_membership(
+                client_val_ctx_a,
                 prefix_on_b,
                 &msg.proof_conn_end_on_b,
                 consensus_state_of_b_on_a.root(),
@@ -104,6 +105,7 @@ where
         }
 
         client_state_of_b_on_a.verify_membership(
+            client_val_ctx_a,
             prefix_on_b,
             &msg.proof_client_state_of_a_on_b,
             consensus_state_of_b_on_a.root(),
@@ -124,6 +126,7 @@ where
         );
 
         client_state_of_b_on_a.verify_membership(
+            client_val_ctx_a,
             prefix_on_b,
             &msg.proof_consensus_state_of_a_on_b,
             consensus_state_of_b_on_a.root(),

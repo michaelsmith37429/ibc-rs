@@ -45,12 +45,54 @@ pub(crate) fn impl_ClientStateValidation(
         imports,
     );
 
+    let verify_upgrade_client_impl = delegate_call_in_match(
+        client_state_enum_name,
+        enum_variants.iter(),
+        opts,
+        quote! {verify_upgrade_client(cs, ctx, upgraded_client_state, upgraded_consensus_state, proof_upgrade_client, proof_upgrade_consensus_state, root)},
+        imports,
+    );
+
+    let verify_membership_raw_impl = delegate_call_in_match(
+        client_state_enum_name,
+        enum_variants.iter(),
+        opts,
+        quote! {verify_membership_raw(cs, ctx, prefix, proof, root, path, value)},
+        imports,
+    );
+    let verify_membership_impl = delegate_call_in_match(
+        client_state_enum_name,
+        enum_variants.iter(),
+        opts,
+        quote! {verify_membership(cs, ctx, prefix, proof, root, path, value)},
+        imports,
+    );
+    let verify_non_membership_raw_impl = delegate_call_in_match(
+        client_state_enum_name,
+        enum_variants.iter(),
+        opts,
+        quote! {verify_non_membership_raw(cs, ctx, prefix, proof, root, path)},
+        imports,
+    );
+    let verify_non_membership_impl = delegate_call_in_match(
+        client_state_enum_name,
+        enum_variants.iter(),
+        opts,
+        quote! {verify_non_membership(cs, ctx, prefix, proof, root, path)},
+        imports,
+    );
+
     // The imports we need for the generated code.
     let Any = imports.any();
     let ClientId = imports.client_id();
     let ClientError = imports.client_error();
     let ClientStateValidation = imports.client_state_validation();
     let Status = imports.status();
+    let CommitmentRoot = imports.commitment_root();
+    let CommitmentPrefix = imports.commitment_prefix();
+    let CommitmentProofBytes = imports.commitment_proof_bytes();
+    let Path = imports.path();
+    let PathBytes = imports.path_bytes();
 
     // The types we need for the generated code.
     let HostClientState = client_state_enum_name;
@@ -104,6 +146,74 @@ pub(crate) fn impl_ClientStateValidation(
             ) -> core::result::Result<(), #ClientError> {
                 match self {
                     #(#check_substitute_impl),*
+                }
+            }
+
+            fn verify_upgrade_client(
+                &self,
+                ctx: &#V,
+                upgraded_client_state: #Any,
+                upgraded_consensus_state: #Any,
+                proof_upgrade_client: #CommitmentProofBytes,
+                proof_upgrade_consensus_state: #CommitmentProofBytes,
+                root: &#CommitmentRoot,
+            ) -> core::result::Result<(), #ClientError> {
+                match self {
+                    #(#verify_upgrade_client_impl),*
+                }
+            }
+
+            fn verify_membership_raw(
+                &self,
+                ctx: &#V,
+                prefix: &#CommitmentPrefix,
+                proof: &#CommitmentProofBytes,
+                root: &#CommitmentRoot,
+                path: #PathBytes,
+                value: Vec<u8>,
+            ) -> core::result::Result<(), #ClientError> {
+                match self {
+                    #(#verify_membership_raw_impl),*
+                }
+            }
+
+            fn verify_membership(
+                &self,
+                ctx: &#V,
+                prefix: &#CommitmentPrefix,
+                proof: &#CommitmentProofBytes,
+                root: &#CommitmentRoot,
+                path: #Path,
+                value: Vec<u8>,
+            ) -> core::result::Result<(), #ClientError> {
+                match self {
+                    #(#verify_membership_impl),*
+                }
+            }
+
+            fn verify_non_membership_raw(
+                &self,
+                ctx: &#V,
+                prefix: &#CommitmentPrefix,
+                proof: &#CommitmentProofBytes,
+                root: &#CommitmentRoot,
+                path: #PathBytes,
+            ) -> core::result::Result<(), #ClientError> {
+                match self {
+                    #(#verify_non_membership_raw_impl),*
+                }
+            }
+
+            fn verify_non_membership(
+                &self,
+                ctx: &#V,
+                prefix: &#CommitmentPrefix,
+                proof: &#CommitmentProofBytes,
+                root: &#CommitmentRoot,
+                path: #Path,
+            ) -> core::result::Result<(), #ClientError> {
+                match self {
+                    #(#verify_non_membership_impl),*
                 }
             }
         }

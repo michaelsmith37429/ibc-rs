@@ -148,6 +148,7 @@ where
         // Verify the proof for the channel state against the expected channel end.
         // A counterparty channel id of None in not possible, and is checked in msg.
         client_state_of_a_on_b.verify_membership(
+            client_val_ctx_b,
             prefix_on_a,
             &msg.proof_chan_end_on_a,
             consensus_state_of_a_on_b.root(),

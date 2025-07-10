@@ -91,7 +91,6 @@ where
                 .iter()
                 .any(|connection_hop| connection_hop == &request.connection_id)
         })
-        .map(Into::into)
         .collect();
 
     Ok(QueryConnectionChannelsResponse::new(
@@ -258,7 +257,6 @@ where
     let commitments = ibc_ctx
         .packet_commitments(&channel_end_path)?
         .into_iter()
-        .map(Into::into)
         .collect();
 
     Ok(QueryPacketCommitmentsResponse::new(
@@ -344,18 +342,13 @@ pub fn query_packet_acknowledgements<I>(
 where
     I: QueryContext,
 {
-    let commitment_sequences = request
-        .packet_commitment_sequences
-        .iter()
-        .copied()
-        .map(Into::into);
+    let commitment_sequences = request.packet_commitment_sequences.iter().copied();
 
     let channel_end_path = ChannelEndPath::new(&request.port_id, &request.channel_id);
 
     let acknowledgements = ibc_ctx
         .packet_acknowledgements(&channel_end_path, commitment_sequences)?
         .into_iter()
-        .map(Into::into)
         .collect();
 
     Ok(QueryPacketAcknowledgementsResponse::new(
@@ -373,11 +366,7 @@ pub fn query_unreceived_packets<I>(
 where
     I: QueryContext,
 {
-    let sequences = request
-        .packet_commitment_sequences
-        .iter()
-        .copied()
-        .map(Into::into);
+    let sequences = request.packet_commitment_sequences.iter().copied();
 
     let channel_end_path = ChannelEndPath::new(&request.port_id, &request.channel_id);
 
@@ -397,7 +386,7 @@ pub fn query_unreceived_acks<I>(
 where
     I: QueryContext,
 {
-    let sequences = request.packet_ack_sequences.iter().copied().map(Into::into);
+    let sequences = request.packet_ack_sequences.iter().copied();
 
     let channel_end_path = ChannelEndPath::new(&request.port_id, &request.channel_id);
 

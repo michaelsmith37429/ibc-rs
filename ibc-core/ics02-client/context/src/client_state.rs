@@ -38,25 +38,6 @@ pub trait ClientStateCommon: Convertible<Any> {
     /// Validate that the client is at a sufficient height
     fn validate_proof_height(&self, proof_height: Height) -> Result<(), ClientError>;
 
-    /// Verify the upgraded client and consensus states and validate proofs
-    /// against the given root.
-    ///
-    /// NOTE: proof heights are not included, as upgrade to a new revision is
-    /// expected to pass only on the last height committed by the current
-    /// revision. Clients are responsible for ensuring that the planned last
-    /// height of the current revision is somehow encoded in the proof
-    /// verification process. This is to ensure that no premature upgrades
-    /// occur, since upgrade plans committed to by the counterparty may be
-    /// cancelled or modified before the last planned height.
-    fn verify_upgrade_client(
-        &self,
-        upgraded_client_state: Any,
-        upgraded_consensus_state: Any,
-        proof_upgrade_client: CommitmentProofBytes,
-        proof_upgrade_consensus_state: CommitmentProofBytes,
-        root: &CommitmentRoot,
-    ) -> Result<(), ClientError>;
-
     /// Serializes a given path object into a raw path bytes.
     ///
     /// This method provides essential information for IBC modules, enabling
@@ -64,50 +45,6 @@ pub trait ClientStateCommon: Convertible<Any> {
     /// light client represents it before passing the path bytes to either
     /// `verify_membership_raw()` or `verify_non_membership_raw()`.
     fn serialize_path(&self, path: Path) -> Result<PathBytes, ClientError>;
-
-    /// Verifies a proof of the existence of a value at a given raw path bytes.
-    fn verify_membership_raw(
-        &self,
-        prefix: &CommitmentPrefix,
-        proof: &CommitmentProofBytes,
-        root: &CommitmentRoot,
-        path: PathBytes,
-        value: Vec<u8>,
-    ) -> Result<(), ClientError>;
-
-    /// Verifies a proof of the existence of a value at a given path object.
-    fn verify_membership(
-        &self,
-        prefix: &CommitmentPrefix,
-        proof: &CommitmentProofBytes,
-        root: &CommitmentRoot,
-        path: Path,
-        value: Vec<u8>,
-    ) -> Result<(), ClientError> {
-        let path_bytes = self.serialize_path(path)?;
-        self.verify_membership_raw(prefix, proof, root, path_bytes, value)
-    }
-
-    /// Verifies the absence of a given proof at a given raw path bytes.
-    fn verify_non_membership_raw(
-        &self,
-        prefix: &CommitmentPrefix,
-        proof: &CommitmentProofBytes,
-        root: &CommitmentRoot,
-        path: PathBytes,
-    ) -> Result<(), ClientError>;
-
-    /// Verifies the absence of a given proof at a given path object.
-    fn verify_non_membership(
-        &self,
-        prefix: &CommitmentPrefix,
-        proof: &CommitmentProofBytes,
-        root: &CommitmentRoot,
-        path: Path,
-    ) -> Result<(), ClientError> {
-        let path_bytes = self.serialize_path(path)?;
-        self.verify_non_membership_raw(prefix, proof, root, path_bytes)
-    }
 }
 
 /// `ClientState` methods which require access to the client's validation
@@ -171,6 +108,74 @@ where
     ///
     /// Returns `Ok` if the subject and substitute client states match, `Err` otherwise.
     fn check_substitute(&self, ctx: &V, substitute_client_state: Any) -> Result<(), ClientError>;
+
+    /// Verify the upgraded client and consensus states and validate proofs
+    /// against the given root.
+    ///
+    /// NOTE: proof heights are not included, as upgrade to a new revision is
+    /// expected to pass only on the last height committed by the current
+    /// revision. Clients are responsible for ensuring that the planned last
+    /// height of the current revision is somehow encoded in the proof
+    /// verification process. This is to ensure that no premature upgrades
+    /// occur, since upgrade plans committed to by the counterparty may be
+    /// cancelled or modified before the last planned height.
+    fn verify_upgrade_client(
+        &self,
+        ctx: &V,
+        upgraded_client_state: Any,
+        upgraded_consensus_state: Any,
+        proof_upgrade_client: CommitmentProofBytes,
+        proof_upgrade_consensus_state: CommitmentProofBytes,
+        root: &CommitmentRoot,
+    ) -> Result<(), ClientError>;
+
+    /// Verifies a proof of the existence of a value at a given raw path bytes.
+    fn verify_membership_raw(
+        &self,
+        ctx: &V,
+        prefix: &CommitmentPrefix,
+        proof: &CommitmentProofBytes,
+        root: &CommitmentRoot,
+        path: PathBytes,
+        value: Vec<u8>,
+    ) -> Result<(), ClientError>;
+
+    /// Verifies a proof of the existence of a value at a given path object.
+    fn verify_membership(
+        &self,
+        ctx: &V,
+        prefix: &CommitmentPrefix,
+        proof: &CommitmentProofBytes,
+        root: &CommitmentRoot,
+        path: Path,
+        value: Vec<u8>,
+    ) -> Result<(), ClientError> {
+        let path_bytes = self.serialize_path(path)?;
+        self.verify_membership_raw(ctx, prefix, proof, root, path_bytes, value)
+    }
+
+    /// Verifies the absence of a given proof at a given raw path bytes.
+    fn verify_non_membership_raw(
+        &self,
+        ctx: &V,
+        prefix: &CommitmentPrefix,
+        proof: &CommitmentProofBytes,
+        root: &CommitmentRoot,
+        path: PathBytes,
+    ) -> Result<(), ClientError>;
+
+    /// Verifies the absence of a given proof at a given path object.
+    fn verify_non_membership(
+        &self,
+        ctx: &V,
+        prefix: &CommitmentPrefix,
+        proof: &CommitmentProofBytes,
+        root: &CommitmentRoot,
+        path: Path,
+    ) -> Result<(), ClientError> {
+        let path_bytes = self.serialize_path(path)?;
+        self.verify_non_membership_raw(ctx, prefix, proof, root, path_bytes)
+    }
 }
 
 /// `ClientState` methods which require access to the client's

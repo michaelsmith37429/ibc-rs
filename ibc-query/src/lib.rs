@@ -55,7 +55,6 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![no_std]
 #![deny(
-    warnings,
     trivial_casts,
     trivial_numeric_casts,
     unused_import_braces,

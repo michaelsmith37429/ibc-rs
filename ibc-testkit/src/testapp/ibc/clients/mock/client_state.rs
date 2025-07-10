@@ -191,46 +191,6 @@ impl ClientStateCommon for MockClientState {
     fn serialize_path(&self, path: Path) -> Result<PathBytes, ClientError> {
         Ok(path.to_string().into_bytes().into())
     }
-
-    fn verify_upgrade_client(
-        &self,
-        upgraded_client_state: Any,
-        upgraded_consensus_state: Any,
-        _proof_upgrade_client: CommitmentProofBytes,
-        _proof_upgrade_consensus_state: CommitmentProofBytes,
-        _root: &CommitmentRoot,
-    ) -> Result<(), ClientError> {
-        let upgraded_mock_client_state = Self::try_from(upgraded_client_state)?;
-        MockConsensusState::try_from(upgraded_consensus_state)?;
-        if self.latest_height() >= upgraded_mock_client_state.latest_height() {
-            return Err(UpgradeClientError::InsufficientUpgradeHeight {
-                upgraded_height: self.latest_height(),
-                client_height: upgraded_mock_client_state.latest_height(),
-            })?;
-        }
-        Ok(())
-    }
-
-    fn verify_membership_raw(
-        &self,
-        _prefix: &CommitmentPrefix,
-        _proof: &CommitmentProofBytes,
-        _root: &CommitmentRoot,
-        _path: PathBytes,
-        _value: Vec<u8>,
-    ) -> Result<(), ClientError> {
-        Ok(())
-    }
-
-    fn verify_non_membership_raw(
-        &self,
-        _prefix: &CommitmentPrefix,
-        _proof: &CommitmentProofBytes,
-        _root: &CommitmentRoot,
-        _path: PathBytes,
-    ) -> Result<(), ClientError> {
-        Ok(())
-    }
 }
 
 impl<V> ClientStateValidation<V> for MockClientState
@@ -238,6 +198,7 @@ where
     V: ClientValidationContext + MockClientContext,
     MockConsensusState: Convertible<V::ConsensusStateRef>,
     <MockConsensusState as TryFrom<V::ConsensusStateRef>>::Error: Into<ClientError>,
+    MockConsensusState: TryFrom<Any>,
 {
     fn verify_client_message(
         &self,
@@ -313,6 +274,49 @@ where
     }
 
     fn check_substitute(&self, _ctx: &V, _substitute_client_state: Any) -> Result<(), ClientError> {
+        Ok(())
+    }
+
+    fn verify_upgrade_client(
+        &self,
+        _ctx: &V,
+        upgraded_client_state: Any,
+        upgraded_consensus_state: Any,
+        _proof_upgrade_client: CommitmentProofBytes,
+        _proof_upgrade_consensus_state: CommitmentProofBytes,
+        _root: &CommitmentRoot,
+    ) -> Result<(), ClientError> {
+        let upgraded_mock_client_state = Self::try_from(upgraded_client_state)?;
+        MockConsensusState::try_from(upgraded_consensus_state)?;
+        if self.latest_height() >= upgraded_mock_client_state.latest_height() {
+            return Err(UpgradeClientError::InsufficientUpgradeHeight {
+                upgraded_height: self.latest_height(),
+                client_height: upgraded_mock_client_state.latest_height(),
+            })?;
+        }
+        Ok(())
+    }
+
+    fn verify_membership_raw(
+        &self,
+        _ctx: &V,
+        _prefix: &CommitmentPrefix,
+        _proof: &CommitmentProofBytes,
+        _root: &CommitmentRoot,
+        _path: PathBytes,
+        _value: Vec<u8>,
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
+
+    fn verify_non_membership_raw(
+        &self,
+        _ctx: &V,
+        _prefix: &CommitmentPrefix,
+        _proof: &CommitmentProofBytes,
+        _root: &CommitmentRoot,
+        _path: PathBytes,
+    ) -> Result<(), ClientError> {
         Ok(())
     }
 }

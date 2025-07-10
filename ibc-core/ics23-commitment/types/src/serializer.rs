@@ -9,6 +9,6 @@ where
 {
     let hex = Hex::upper_case()
         .encode_to_string(data)
-        .map_err(|e| serde::ser::Error::custom(format!("failed to serialize hex: {}", e)))?;
+        .map_err(|e| serde::ser::Error::custom(format!("failed to serialize hex: {e}")))?;
     hex.serialize(serializer)
 }

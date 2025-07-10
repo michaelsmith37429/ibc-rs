@@ -39,6 +39,7 @@ where
 
     // Validate the upgraded client state and consensus state and verify proofs against the root
     old_client_state.verify_upgrade_client(
+        ctx.get_client_validation_context(),
         msg.upgraded_client_state.clone(),
         msg.upgraded_consensus_state,
         msg.proof_upgrade_client,

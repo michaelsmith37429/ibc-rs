@@ -106,6 +106,7 @@ where
         // Verify the proof for the channel state against the expected channel end.
         // A counterparty channel id of None in not possible, and is checked by validate_basic in msg.
         client_state_of_b_on_a.verify_membership(
+            client_val_ctx_a,
             prefix_on_b,
             &msg.proof_close_on_b,
             consensus_state_of_b_on_a.root(),
@@ -127,6 +128,7 @@ where
                     SeqRecvPath::new(&packet.port_id_on_b, &packet.chan_id_on_b);
 
                 client_state_of_b_on_a.verify_membership(
+                    client_val_ctx_a,
                     conn_end_on_a.counterparty().prefix(),
                     &msg.proof_unreceived_on_b,
                     consensus_state_of_b_on_a.root(),
@@ -142,6 +144,7 @@ where
                 );
 
                 client_state_of_b_on_a.verify_non_membership(
+                    client_val_ctx_a,
                     conn_end_on_a.counterparty().prefix(),
                     &msg.proof_unreceived_on_b,
                     consensus_state_of_b_on_a.root(),
